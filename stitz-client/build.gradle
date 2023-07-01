@@ -1,0 +1,69 @@
+plugins {
+    id 'org.cadixdev.licenser' version '0.+'
+    id 'com.github.johnrengelman.shadow' version '8.+'
+    id 'java'
+}
+
+version = '1.0.0'
+group = 'dev.cheos'
+archivesBaseName = 'stitz-client'
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+repositories {
+    mavenCentral()
+    flatDir {
+        dir 'lib'
+    }
+}
+
+dependencies {
+    implementation group: 'com.google.guava', name: 'guava', version: '32.+'
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.12.+'
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '2.+'
+    implementation group: 'me.friwi', name: 'jcefmaven', version: '110.+'
+    implementation name: 'tritonus_share', version: '0.3.+'
+    implementation name: 'tritonus_remaining', version: '0.3.+'
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'dev.cheos.stitz.StitzClient'
+    }
+}
+
+license {
+    include '**/*.java'
+    header = file('licenses/MIT')
+
+    properties {
+        name = 'Cheos'
+        year = '2023'
+    }
+
+    matching ('**/dev/cheos/stitz/iax/**') {
+        header = file('licenses/IAX_APACHE')
+    }
+    matching ('**/dev/cheos/stitz/tritonus/**') {
+        header = file('licenses/TRITONUS_APACHE')
+    }
+    matching ('**/dev/cheos/stitz/gsm/**') {
+        header = file('licenses/GSM_GNU_LGPL3')
+    }
+}
+
+shadowJar {
+    archiveClassifier = ''
+}
+
+task run(type: JavaExec) {
+    group = 'run'
+    classpath sourceSets.main.runtimeClasspath
+    mainClass = 'dev.cheos.stitz.StitzClient'
+    workingDir = 'run'
+    args '--debug'
+}
+
+compileJava.dependsOn updateLicenses
+build.dependsOn checkLicenses
+build.dependsOn shadowJar

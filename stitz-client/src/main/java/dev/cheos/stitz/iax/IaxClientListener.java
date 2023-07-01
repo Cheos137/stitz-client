@@ -1,0 +1,37 @@
+/*
+ * Copyright (c) 2023 Cheos
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
+ * Original by Jan Jurgens, https://github.com/misternerd/djiax
+ * Changes:
+ * - refactor of individual components
+ * - implement incoming calls
+ */
+
+package dev.cheos.stitz.iax;
+
+import java.util.Set;
+
+import dev.cheos.stitz.iax.frame.Frame;
+import dev.cheos.stitz.iax.frame.MediaFrame;
+
+public interface IaxClientListener {
+	default void onStateChanged(IaxClient client, ClientState prev, ClientState next) { }
+	default void onConnect(IaxClient client, boolean succes) { }
+	default void onDisconnect(IaxClient client) { }
+	default void onRetransmitError(IaxClient client, Frame frame) { }
+	default void onCallIncoming(IaxClient client, IaxCall.Pending call) { }
+	default boolean onCheckCodecSupported(IaxClient client, MediaFrame.Format codec) { return true; }
+	default MediaFrame.Format onQueryPreferredCodec(IaxClient client, Set<MediaFrame.Format> codecs) { return null; }
+}
