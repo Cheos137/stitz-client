@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  *
- * Original by Jan Jurgens, https://github.com/misternerd/djiax
+ * Original Copyright (c) by Jan Jurgens, https://github.com/misternerd/djiax
  * Changes:
  * - refactor of individual components
  * - implement incoming calls

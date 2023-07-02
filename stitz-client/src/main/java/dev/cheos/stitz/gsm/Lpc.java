@@ -2,7 +2,7 @@
  * Copyright (c) 2023 Cheos
  *
  * This file is part of the GSM 6.10 audio decoder library for Java
- * Copyright (C) 1998 Steven Pickles (pix@test.at)
+ * Copyright (c) 1998 Steven Pickles (pix@test.at)
  *
  * This library is free software; you can redistribute it and/or
  * modify it under the terms of the GNU Library General Public
