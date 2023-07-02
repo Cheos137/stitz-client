@@ -23,8 +23,7 @@
 
 package dev.cheos.stitz;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.*;
 
 import javax.sound.sampled.*;
@@ -438,7 +437,7 @@ public class StitzAudioHandler implements AutoCloseable { // TODO allow for cust
 	private Clip loadClip(String name) {
 		try {
 			Clip clip = (Clip) this.clipMixer.getLine(new DataLine.Info(Clip.class, DEF_FORMAT));
-			InputStream is = getClass().getResourceAsStream("/sfx/%s.wav".formatted(name));
+			InputStream is = new BufferedInputStream(getClass().getResourceAsStream("/sfx/%s.wav".formatted(name)));
 			clip.open(AudioSystem.getAudioInputStream(is));
 			return clip;
 		} catch (Exception e) {
