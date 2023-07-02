@@ -48,3 +48,6 @@ gradle-app.setting
 
 # EXECUTIONS
 **/run/
+
+# avoid ignoring libs
+!**/lib/*.jar
