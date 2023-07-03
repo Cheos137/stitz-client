@@ -484,6 +484,7 @@ public class IaxCall implements FrameHandler<Frame> {
 		}
 		
 		public void setState(State state) {
+			LOGGER.debug("set pending call state to {}", state);
 			this.state = state;
 		}
 		

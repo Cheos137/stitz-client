@@ -41,7 +41,7 @@ import dev.cheos.stitz.logging.LoggerImpl;
 import me.friwi.jcefmaven.CefAppBuilder;
 import me.friwi.jcefmaven.MavenCefAppHandlerAdapter;
 
-public class StitzClient {
+public class StitzClient { // TODO fix: lock ui interaction until login panel appeared / login was successful TODO fix audio resampling still being stupid (in jar only?) TODO fix incoming calls (looks like improper locking or sth.)
 	private static final Logger LOGGER = LoggerFactory.getLogger(StitzClient.class);
 	public static final Path DATA_DIR = Path.of(System.getProperty("user.home")).resolve(".sts").resolve("stitz-client");
 	public static final Path LOG_DIR = DATA_DIR.resolve("logs");
@@ -53,9 +53,16 @@ public class StitzClient {
 	private static CefClient client;
 	private static UIMessageRouter router;
 	private static CefBrowser browser;
+	public static boolean debug, verbose;
 	
 	public static void main(String[] args) {
-		boolean debug = args.length > 0 && "--debug".equalsIgnoreCase(args[0]);
+		for (String arg : args)
+			switch (arg) {
+				case "--debug" -> debug = true;
+				case "--verbose", "-v" -> verbose = true;
+				default -> { }
+			}
+		
 		try {
 			if (Files.notExists(LOG_DIR))
 				Files.createDirectories(LOG_DIR);

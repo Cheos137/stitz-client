@@ -41,7 +41,7 @@ public class UIMessageRouter extends CefMessageRouterHandlerAdapter {
 	private final boolean debug;
 	
 	public UIMessageRouter(boolean debug) {
-		this.debug = true;
+		this.debug = debug;
 	}
 	
 	/*

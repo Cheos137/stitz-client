@@ -72,7 +72,9 @@ public class StitzCallHandler implements AutoCloseable {
 						password,
 						InetAddress.getByName("stitz.stellwerksim.de"),
 						4569,
-						10),
+						10,
+						StitzClient.debug,
+						StitzClient.verbose),
 				(short) (CLIENT_CALL_NUMBER.getAndIncrement() % IaxConstants.CLIENT_MAX_SOURCE_CALL_NUMBER));
 		this.client.addListener(new Listener());
 		synchronized (this.loginLock) {
@@ -162,8 +164,10 @@ public class StitzCallHandler implements AutoCloseable {
 		if (this.pending == null || this.client == null) return;
 		if (this.inCall) hangup();
 		
+		LOGGER.debug("accepting incoming call");
+		
 		this.pending.accept().thenAccept(call -> {
-			StitzClient.getAudioHandler().cancelLoopSound("call_incoming");
+			LOGGER.debug("processing accepted call");
 			if (call == null) {
 				this.pending = null;
 				StitzClient.postUIMessage("cancel-incoming-call");
@@ -183,6 +187,7 @@ public class StitzCallHandler implements AutoCloseable {
 		});
 		
 		synchronized (StitzCallHandler.this.callIncomingLock) {
+			LOGGER.debug("notifying incoming call lock (accept)");
 			StitzCallHandler.this.callIncomingLock.notifyAll();
 		}
 	}
@@ -193,7 +198,9 @@ public class StitzCallHandler implements AutoCloseable {
 		this.pending = null;
 		StitzClient.getAudioHandler().cancelLoopSound("call_incoming");
 		StitzClient.getAudioHandler().playSound("cancel_incoming");
+		
 		synchronized (StitzCallHandler.this.callIncomingLock) {
+			LOGGER.debug("notifying incoming call lock (decline)");
 			StitzCallHandler.this.callIncomingLock.notifyAll();
 		}
 	}
@@ -227,7 +234,7 @@ public class StitzCallHandler implements AutoCloseable {
 				}
 			
 			if (read < buf.length) {
-				LOGGER.debug("reached end of mic input stream, terminating mic push thread");
+				LOGGER.debug("reached end of mic input stream, terminating mic push thread (read {} of {} bytes)", read, buf.length);
 				return; // end of stream reached
 			}
 		}
@@ -270,7 +277,9 @@ public class StitzCallHandler implements AutoCloseable {
 			StitzCallHandler.this.pending = call;
 			StitzClient.callUI("callIncoming", call.getCallingName(), call.getUsername());
 			StitzClient.getAudioHandler().loopSound("call_incoming");
+			
 			synchronized (StitzCallHandler.this.callIncomingLock) {
+				LOGGER.debug("waiting on for incoming call to get accepted/declined");
 				try { StitzCallHandler.this.callIncomingLock.wait(30_000); }
 				catch (InterruptedException e) { }
 			}

@@ -268,6 +268,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 	
 	boolean send(Frame frame, boolean requireResponse) {
 		try {
+			if (this.config.debug && (this.config.debugLogMiniFrames || !(frame instanceof MiniFrame)))
 			LOGGER.debug("SEND {}", frame);
 			this.ioHandler.send(frame);
 			if (frame instanceof FullFrame fullFrame) {
@@ -304,6 +305,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 	@Override
 	public void handle(Frame frame) {
 		Preconditions.checkNotNull(frame, "frame is null");
+		if (this.config.debug && (this.config.debugLogMiniFrames || !(frame instanceof MiniFrame)))
 		LOGGER.debug("RECV {}", frame);
 		
 		if (frame instanceof MiniFrame) // miniFrames only transmit their source call number, need to map to the destination call number respectively or drop frame if call not found
@@ -533,5 +535,18 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 			String password,
 			InetAddress remoteAddress,
 			int remotePort,
-			int callCountLimit) { }
+			int callCountLimit,
+			boolean debug,
+			boolean debugLogMiniFrames) {
+		public Configuration(
+				String clientName,
+				String displayName,
+				String username,
+				String password,
+				InetAddress remoteAddress,
+				int remotePort,
+				int callCountLimit) {
+			this(clientName, displayName, username, password, remoteAddress, remotePort, callCountLimit, false, false);
+		}
+	}
 }

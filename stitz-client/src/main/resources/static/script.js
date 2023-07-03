@@ -11,7 +11,7 @@ const call = (message, persistent = false) => {
 };
 
 const ifdebug = fn => {
-    call('debug').then(_ => fn()).catch();
+    call('debug').then(_ => fn(), _ => { });
 };
 
 const handle = (message) => {
