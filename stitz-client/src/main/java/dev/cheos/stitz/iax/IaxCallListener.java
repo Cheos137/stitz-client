@@ -30,6 +30,7 @@ public interface IaxCallListener {
 	default void onAnswered(IaxCall call) { }
 	default void onCongestion(IaxCall call) { }
 	default void onHangup(IaxCall call) { }
+	default void onRemoteHangup(IaxCall call) { }
 	default void onBusy(IaxCall call) { }
 	default void onRetransmitError(IaxCall call, Frame frame) { }
 	

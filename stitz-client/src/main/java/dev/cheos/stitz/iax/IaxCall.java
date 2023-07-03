@@ -58,7 +58,7 @@ public class IaxCall implements FrameHandler<Frame> {
 	private long lastRetransmitTimestamp = System.currentTimeMillis();
 	private final AtomicInteger iSeqNo = new AtomicInteger();
 	private final AtomicInteger oSeqNo = new AtomicInteger();
-	private boolean active, audioActive, canSendAudioMiniFrames;
+	private boolean active, audioActive, canSendAudioMiniFrames, hangup;
 	final List<IaxCallListener> listeners = new LinkedList<>();
 	final List<IaxCallListener.AudioListener> audioListeners = new LinkedList<>();
 	private final Map<Long, FullFrame> awaitingResponse = new ConcurrentHashMap<>();
@@ -106,10 +106,13 @@ public class IaxCall implements FrameHandler<Frame> {
 	public void stop() {
 		if (!this.active) return;
 		this.active = false;
+		this.hangup = true;
 		this.state = this.state.prev();
 		setAudioActive(false);
-		send(this.frameBuilder.fork().iaxSubclass(IaxFrame.Subclass.HANGUP).iax(), true);
-		this.listeners.forEach(l -> l.onHangup(this));
+		send(this.frameBuilder.fork()
+				.iaxSubclass(IaxFrame.Subclass.HANGUP)
+				.ie(InformationElement.causeCode(CauseCode.Cause.NORMAL_CALL_CLEARING))
+				.iax(), true);
 	}
 	
 	void remoteStop() {
@@ -117,6 +120,7 @@ public class IaxCall implements FrameHandler<Frame> {
 		this.active = false;
 		this.state = this.state.prev();
 		setAudioActive(false);
+		this.listeners.forEach(l -> l.onRemoteHangup(this));
 		this.listeners.forEach(l -> l.onHangup(this));
 	}
 	
@@ -258,7 +262,7 @@ public class IaxCall implements FrameHandler<Frame> {
 							|| iaxFrame.getIAXSubclass() == IaxFrame.Subclass.TXACC
 							|| iaxFrame.getIAXSubclass() == IaxFrame.Subclass.TXCNT
 							|| iaxFrame.getIAXSubclass() == IaxFrame.Subclass.VNAK)
-						break orderCheck;
+						return;
 				}
 				
 				byte iSeqNo = getISeqNo();
@@ -288,7 +292,13 @@ public class IaxCall implements FrameHandler<Frame> {
 	}
 	
 	public void update() {
-		if (!this.active) return;
+		if (!this.active) {
+			if (this.hangup && this.awaitingResponse.isEmpty()) {
+				this.listeners.forEach(l -> l.onHangup(this));
+				this.hangup = false;
+			}
+			return;
+		}
 		long now = System.currentTimeMillis();
 		if (this.lastRetransmitTimestamp + IaxConstants.CALL_RETRANSMIT_INTERVAL < now) {
 			retransmit();
