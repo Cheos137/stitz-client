@@ -44,6 +44,7 @@ public class StitzCallHandler implements AutoCloseable {
 	private IaxClient client;
 	private IaxCall call;
 	private IaxCall.Pending pending;
+	private final IaxCallListener listener = new CallListener();
 	private boolean loggedIn, loginSuccess, inCall;
 	private Timer timer = new Timer();
 	private TimerTask timestampUpdateTask;
@@ -146,7 +147,7 @@ public class StitzCallHandler implements AutoCloseable {
 		if (this.inCall || this.client == null) return;
 		this.inCall = true;
 		this.call = this.client.call(number, MediaFrame.Format.GSM_FULL_RATE);
-		this.call.addListener(new CallListener());
+		this.call.addListener(this.listener);
 		this.call.addListener(StitzClient.getAudioHandler().getListener());
 		this.call.start();
 		StitzClient.getAudioHandler().flushMic();
@@ -157,33 +158,49 @@ public class StitzCallHandler implements AutoCloseable {
 	}
 	
 	public void hangup() {
+		hangup(false);
+	}
+	
+	public void hangup(boolean silent) {
 		this.call.stop(); // call listener takes care of the rest
+		this.call.removeListener(this.listener);
+		this.call = null;
+		this.inCall = false;
+		if (this.voicePushExecutor != null) {
+			this.shutdownExecutors.put(StitzCallHandler.this.voicePushExecutor, true);
+			this.voicePushExecutor.shutdown();
+			try { this.voicePushExecutor.awaitTermination(10, TimeUnit.SECONDS); }
+			catch (InterruptedException e) { }
+		}
+		this.voicePushExecutor = null;
+		StitzClient.callUI("setInCall", false);
+		StitzClient.getAudioHandler().cancelLoopSound("call_outgoing");
+		if (!silent)
+			StitzClient.getAudioHandler().playSound("hangup");
 	}
 	
 	public void accept() {
 		if (this.pending == null || this.client == null) return;
-		if (this.inCall) hangup();
+		if (this.inCall) hangup(true);
 		
 		LOGGER.debug("accepting incoming call");
 		
 		this.pending.accept().thenAccept(call -> {
 			LOGGER.debug("processing accepted call");
 			if (call == null) {
-				this.pending = null;
-				StitzClient.postUIMessage("cancel-incoming-call");
 				StitzClient.getAudioHandler().playSound("cancel_incoming");
 				return;
 			}
 			this.inCall = true;
 			this.call = call;
-			call.addListener(new CallListener());
+			call.addListener(this.listener);
 			call.addListener(StitzClient.getAudioHandler().getListener());
 			StitzClient.getAudioHandler().flushMic();
 			this.voicePushExecutor = Executors.newSingleThreadExecutor();
 			this.voicePushExecutor.execute(() -> pushMic(this.voicePushExecutor));
 			StitzClient.callUI("setInCall", true, this.pending.getCallingName(), this.pending.getUsername());
-			this.pending = null;
 			StitzClient.getAudioHandler().playSound("accept_incoming");
+			this.pending = null;
 		});
 		
 		synchronized (StitzCallHandler.this.callIncomingLock) {
@@ -195,8 +212,7 @@ public class StitzCallHandler implements AutoCloseable {
 	public void decline() {
 		if (this.pending == null) return;
 		this.pending.decline();
-		this.pending = null;
-		StitzClient.getAudioHandler().cancelLoopSound("call_incoming");
+		StitzCallHandler.this.pending = null;
 		StitzClient.getAudioHandler().playSound("cancel_incoming");
 		
 		synchronized (StitzCallHandler.this.callIncomingLock) {
@@ -283,6 +299,9 @@ public class StitzCallHandler implements AutoCloseable {
 				try { StitzCallHandler.this.callIncomingLock.wait(30_000); }
 				catch (InterruptedException e) { }
 			}
+			
+			StitzClient.getAudioHandler().cancelLoopSound("call_incoming");
+			StitzClient.postUIMessage("cancel-incoming-call");
 		}
 		
 		@Override
@@ -299,10 +318,8 @@ public class StitzCallHandler implements AutoCloseable {
 	}
 	
 	private class CallListener implements IaxCallListener {
-		@Override public void onProceeding(IaxCall call) { }
-		@Override public void onRinging(IaxCall call) { }
-		@Override public void onCongestion(IaxCall call) { call.stop(); }
-		@Override public void onBusy(IaxCall call) { call.stop(); }
+		@Override public void onCongestion(IaxCall call) { hangup(); }
+		@Override public void onBusy(IaxCall call) { hangup(); }
 		
 		@Override
 		public void onAnswered(IaxCall call) {
@@ -311,7 +328,8 @@ public class StitzCallHandler implements AutoCloseable {
 		}
 		
 		@Override
-		public void onHangup(IaxCall call) {
+		public void onRemoteHangup(IaxCall call) {
+			StitzCallHandler.this.call.removeListener(StitzCallHandler.this.listener);
 			StitzCallHandler.this.call = null;
 			StitzCallHandler.this.inCall = false;
 			if (StitzCallHandler.this.voicePushExecutor != null) {

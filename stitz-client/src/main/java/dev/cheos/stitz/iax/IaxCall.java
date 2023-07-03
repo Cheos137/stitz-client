@@ -358,13 +358,13 @@ public class IaxCall implements FrameHandler<Frame> {
 	 */
 	public static class Pending extends IaxCall {
 		private final IaxClient client;
-		private final String callingName, username, calledNumber;
+		private String callingName, username, calledNumber;
 		private final MediaFrame.Format[] supportedCodecs;
 		private final MediaFrame.Format preferredCodec;
 		private final short srcCallNumber, dstCallNumber, samplingRate;
 		private CompletableFuture<IaxCall> pendingCall = new CompletableFuture<>();
 		private boolean declined, accepted;
-		private State state;
+		private State state = State.SETUP;
 		
 		Pending(
 				IaxClient client,
@@ -387,6 +387,7 @@ public class IaxCall implements FrameHandler<Frame> {
 			this.preferredCodec = preferredCodec;
 			this.samplingRate = samplingRate;
 			setDstCallNumber(dstCallNumber);
+			super.getAndIncrementISeqNo();
 			setState(new CallState.Pending(this));
 		}
 		
@@ -396,6 +397,7 @@ public class IaxCall implements FrameHandler<Frame> {
 			this.srcCallNumber = srcCallNumber;
 			this.dstCallNumber = frame.getSrcCallNumber();
 			setDstCallNumber(this.dstCallNumber);
+			super.getAndIncrementISeqNo();
 			setState(new CallState.Pending(this));
 			
 			Optional<CallingName> callingName = frame.getIEOpt(InformationElementType.CALLING_NAME);
@@ -405,21 +407,12 @@ public class IaxCall implements FrameHandler<Frame> {
 			Optional<Format> format = frame.getIEOpt(InformationElementType.FORMAT);
 			Optional<SamplingRate> samplingRate = frame.getIEOpt(InformationElementType.SAMPLINGRATE);
 			
-			String callingNameTmp = null, usernameTmp = null;
-			if (callingName.isPresent()) {
-				callingNameTmp = callingName.get().getCallingName();
-				if (username.isEmpty())
-					usernameTmp = callingNameTmp;
-			}
-			if (username.isPresent()) {
-				usernameTmp = username.get().getUsername();
-				if (callingName.isEmpty())
-					callingNameTmp = usernameTmp;
-			}
-			this.callingName = callingNameTmp;
-			this.username = usernameTmp;
+			Optional<String> usernameStr = username.map(Username::getUsername),
+					callingNameStr = callingName.map(CallingName::getCallingName);
 			
-			this.calledNumber = calledNumber.isPresent() ? calledNumber.get().getCalledNumber() : null;
+			this.username = usernameStr.orElse(callingNameStr.orElse("<unknown>"));
+			this.callingName = callingNameStr.orElse(this.username);
+			this.calledNumber = calledNumber.map(CalledNumber::getCalledNumber).orElse(null);
 			
 			if (capability.isPresent() && format.isPresent()) {
 				this.supportedCodecs = capability.get().getCapabilities();
@@ -452,6 +445,12 @@ public class IaxCall implements FrameHandler<Frame> {
 		
 		public String getUsername() {
 			return this.username;
+		}
+		
+		void setUsername(String username) {
+			this.username = username;
+			if (this.callingName == null)
+				this.callingName = username;
 		}
 		
 		@Override
@@ -557,6 +556,7 @@ public class IaxCall implements FrameHandler<Frame> {
 		}
 		
 		static enum State {
+			SETUP,
 			REJECT_SENT,
 			RINGING,
 			HANGUP_SENT;

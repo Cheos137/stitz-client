@@ -112,7 +112,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 		this.updateTask.cancel();
 		if (this.stateActionRetryTask != null)
 			this.stateActionRetryTask.cancel();
-		this.calls.forEach((v, call) -> call.stop());
+		this.calls.values().forEach(IaxCall::stop);
 		
 		this.serverRefresh = IaxConstants.CLIENT_REGISTRATION_REFRESH;
 		setState(new ClientState.Releasing(this));
@@ -125,7 +125,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 				.timestamp(this.regRelTimestamp)
 				.iaxSubclass(IaxFrame.Subclass.REGREL)
 				.ie(username(getConfig().username()))
-				.ie(causeCode(CauseCode.Cause.NORMAL_UNSPECIFIED))
+				.ie(causeCode(CauseCode.Cause.NORMAL_CALL_CLEARING))
 				.ie(cause("user requested disconnect"))
 				.iax(), true))
 			throw new IllegalStateException("failed to disconnect: unable to send REGREL packet");
@@ -269,7 +269,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 	boolean send(Frame frame, boolean requireResponse) {
 		try {
 			if (this.config.debug && (this.config.debugLogMiniFrames || !(frame instanceof MiniFrame)))
-			LOGGER.debug("SEND {}", frame);
+				LOGGER.debug("SEND {}", frame);
 			this.ioHandler.send(frame);
 			if (frame instanceof FullFrame fullFrame) {
 				fullFrame.updateRetransmissionTime();
@@ -306,7 +306,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 	public void handle(Frame frame) {
 		Preconditions.checkNotNull(frame, "frame is null");
 		if (this.config.debug && (this.config.debugLogMiniFrames || !(frame instanceof MiniFrame)))
-		LOGGER.debug("RECV {}", frame);
+			LOGGER.debug("RECV {}", frame);
 		
 		if (frame instanceof MiniFrame) // miniFrames only transmit their source call number, need to map to the destination call number respectively or drop frame if call not found
 			Optional.ofNullable(this.callsByDestination.get(frame.getSrcCallNumber())).ifPresent(call -> call.handle(frame));
@@ -328,7 +328,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 								|| iaxFrame.getIAXSubclass() == IaxFrame.Subclass.TXACC
 								|| iaxFrame.getIAXSubclass() == IaxFrame.Subclass.TXCNT
 								|| iaxFrame.getIAXSubclass() == IaxFrame.Subclass.VNAK)
-							break orderCheck;
+							return;
 					}
 					
 					if (fullFrame.getDstCallNumber() == 0) // call initiation, typically iax/NEW, iax/PING or iax/PONG, iSeqNo won't match as this is a separate call
@@ -381,6 +381,14 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 			this.callsByDestination.put(frame.getSrcCallNumber(), pendingCall);
 		}
 		
+		pendingCall.send(pendingCall.frameBuilder
+				.fork()
+				.oSeqNo(frame.getISeqNo())
+				.iSeqNo((byte) (frame.getOSeqNo() + 1))
+				.timestamp(frame.getTimestamp())
+				.iaxSubclass(IaxFrame.Subclass.ACK)
+				.iax());
+		
 		if (reject) {
 			pendingCall.setState(IaxCall.Pending.State.REJECT_SENT);
 			pendingCall.send(pendingCall.frameBuilder
@@ -410,6 +418,9 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 			return;
 		}
 		
+		// Asterisk is SLOW and will not acknowledge us accepting the call if we're too fast
+		try { Thread.sleep(1000); } catch (InterruptedException e) { }
+		
 		MediaFrame.Format preferred = supportedCodecs.contains(pendingCall.getPreferredCodec()) ? pendingCall.getPreferredCodec() : null;
 		for (IaxClientListener l : this.listeners) {
 			MediaFrame.Format codec = l.onQueryPreferredCodec(this, supportedCodecs);
@@ -428,8 +439,12 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 		pendingCall.send(pendingCall.frameBuilder
 				.fork()
 				.cfSubclass(ControlFrame.Subclass.RINGING)
-				.iax(), true);
-		this.listeners.forEach(l -> l.onCallIncoming(this, pendingCall));
+				.control(), true);
+		
+		CompletableFuture.allOf(
+				this.listeners.stream()
+				.map(l -> CompletableFuture.runAsync(() -> l.onCallIncoming(this, pendingCall)))
+				.toArray(CompletableFuture<?>[]::new)).join(); // run listeners in parallel
 		
 		if (pendingCall.isDeclined()) {
 			pendingCall.setState(IaxCall.Pending.State.HANGUP_SENT);
@@ -453,7 +468,7 @@ public class IaxClient implements IaxCallListener, FrameHandler<Frame>, FrameDis
 		pendingCall.send(pendingCall.frameBuilder
 				.fork()
 				.cfSubclass(ControlFrame.Subclass.ANSWER)
-				.iax(), true);
+				.control(), true);
 		
 		IaxCall call = pendingCall.promote(supportedCodecs.toArray(MediaFrame.Format[]::new), preferred);
 		if (call == null) {

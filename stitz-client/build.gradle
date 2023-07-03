@@ -61,7 +61,7 @@ task run(type: JavaExec) {
     classpath sourceSets.main.runtimeClasspath
     mainClass = 'dev.cheos.stitz.StitzClient'
     workingDir = 'run'
-    args '--debug', '--verbose'
+    args '--debug' //, '--verbose'
 }
 
 compileJava.dependsOn updateLicenses

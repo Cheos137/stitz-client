@@ -111,7 +111,9 @@ public abstract sealed class CallState implements FrameHandler<FullFrame> {
 		
 		@Override
 		public void handle(FullFrame frame) {
-			switch (((IaxCall.Pending) call).getPendingState()) {
+			IaxCall.Pending pending = (IaxCall.Pending) this.call;
+			switch (pending.getPendingState()) {
+				case SETUP -> { }
 				case REJECT_SENT -> {
 					if (frame instanceof IaxFrame iaxFrame && iaxFrame.getIAXSubclass() == IaxFrame.Subclass.ACK) {
 						this.call.markResponded(iaxFrame.getISeqNo());

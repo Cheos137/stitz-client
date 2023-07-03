@@ -67,6 +67,13 @@ public class UIMessageRouter extends CefMessageRouterHandlerAdapter {
 				else callback.success("");
 				return true;
 			}
+			case "debuglog" -> {
+				if (this.debug && args.length > 0) {
+					if (args.length == 1)
+						LOGGER.debug(args[0]);
+					else LOGGER.debug(args[0], (Object[]) Arrays.copyOfRange(args, 1, args.length));
+				}
+			}
 			/*
 			 * login
 			 */
@@ -201,6 +208,8 @@ public class UIMessageRouter extends CefMessageRouterHandlerAdapter {
 	}
 	
 	public void callRaw(CefBrowser browser, String js) {
+		if (StitzClient.verbose)
+			LOGGER.debug("Executing js {}", js);
 		browser.executeJavaScript(js, null, 0);
 	}
 	

@@ -174,6 +174,7 @@ const showCallOutgoing = (peerName = '', peerNumber = '') => {
 };
 
 const setInCall = (inCall, peerName = '', peerNumber = '') => {
+    call(`debuglog setInCall({},'{}','{}') ${inCall} ${peerName} ${peerNumber}`);
     if (!inCall)
         $('#call-input').value = '';
     $('#not-in-call').classList.toggle('hidden', inCall);
